@@ -2,8 +2,8 @@
   "id": "gpu-monitor",
   "name": "GPU Monitor",
   "version": "0.1.0",
-  "author": "hectorbaez81 \u003chector.baez@gmail.com\u003e",
-  "description": "GPU Monitor is a Ryoku shell plugin.",
+  "author": "hectorbaez81 <hector.baez@gmail.com>",
+  "description": "Rootless GPU monitor for Intel (i915, xe), AMD (amdgpu) and NVIDIA: usage, clocks, VRAM, temperature, throttling and top GPU processes.",
   "license": "MIT",
   "official": false,
   "hosts": [
@@ -15,9 +15,11 @@
     "panel": "content/Panel.qml"
   },
   "panel": {
-    "width": 320
+    "width": 340
   },
-  "files": [],
+  "files": [
+    "bin/gpu-stat.sh"
+  ],
   "capabilities": {
     "densities": [
       "glyph",
@@ -29,16 +31,34 @@
     "label": "GPU Monitor"
   },
   "dependencies": {
-    "commands": []
+    "commands": [
+      "lspci",
+      "btop",
+      "kitty",
+      "nvidia-smi",
+      "awk",
+      "grep",
+      "date",
+      "readlink",
+      "basename",
+      "cat"
+    ]
   },
   "metadata": {
     "settings": [
       {
-        "key": "showCount",
-        "type": "toggle",
-        "label": "Show the tick count",
-        "group": "GPU Monitor",
-        "default": true
+        "key": "gpu",
+        "type": "text",
+        "label": "GPU to show: auto, or a card (card1), PCI slot or driver (i915, xe, amdgpu, nvidia)",
+        "group": "Behavior",
+        "default": "auto"
+      },
+      {
+        "key": "terminal",
+        "type": "text",
+        "label": "Terminal used to open btop (run as: <terminal> -e btop)",
+        "group": "Behavior",
+        "default": "kitty"
       }
     ]
   }

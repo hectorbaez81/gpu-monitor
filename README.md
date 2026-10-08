@@ -1,51 +1,48 @@
 # GPU Monitor
 
-A Ryoku shell plugin (`gpu-monitor`). This scaffold is a working demo: a counter that
-ticks once a second, a mark on the bar, and a panel with a RESET button. Edit it
-into your own widget.
+A Ryoku bar plugin (`gpu-monitor`): a GPU usage glyph on the bar and a panel
+modelled on the Ryoku CPU panel. Works without root on Intel, AMD and NVIDIA.
 
-## What it does
+## Supported GPUs
 
-- **Service** (`service/Main.qml`): the logic, no UI. Holds the live state the
-  views read through `pluginApi.mainInstance`.
-- **Widget** (`content/Widget.qml`): the one view the host mounts. A left click
-  toggles the panel; it never changes state.
-- **Panel** (`content/Panel.qml`): the bar panel the host renders under the
-  glyph when this plugin is on the bar.
+| Driver | Usage from | Status |
+| ------ | ---------- | ------ |
+| `i915` (Intel) | per-process engine time in DRM fdinfo; RC6 residency as fallback | tested |
+| `xe` (newer Intel) | fdinfo engine cycles | experimental |
+| `amdgpu` (AMD) | `gpu_busy_percent` | experimental |
+| `nvidia` (proprietary) | `nvidia-smi` | experimental |
 
-## What it reads and writes
+With several GPUs, `auto` prefers NVIDIA, then an AMD card with more than 2 GB of
+VRAM (a discrete card), then the integrated GPU. Set **GPU** to a card name
+(`card1`), PCI slot or driver to choose one.
 
-The demo reads nothing off the machine and writes nothing. When you add real
-behaviour, keep to the rules in `AGENTS.md`: read settings through
-`pluginApi.pluginSettings` behind a default, write them only through
-`pluginApi.saveSetting(key, value)`, and write files only under
-`pluginApi.stateDir`. Every external command belongs in `bin/` or in
-`dependencies.commands`; every host you contact belongs in
-`capabilities.network`; a privileged action runs only through `pkexec` listed in
-`capabilities.privileged`.
+## What it shows
+
+Bar: a glyph and the GPU's usage %. Panel: name, usage bar and 60-sample history,
+clock (current / maximum), requested clock and render/media split (Intel),
+frequency range, VRAM (AMD, NVIDIA), GPU temperature (AMD, NVIDIA) or CPU package
+temperature (Intel), throttling reasons (Intel), the top three processes by GPU
+use, and an Open btop button. Rows a GPU doesn't report are hidden.
+
+## What runs and what it reads
+
+| What | When | Reads |
+| ---- | ---- | ----- |
+| `bin/gpu-stat.sh <gpu> [top]` | every 2 s, every 1 s with the panel open | `/sys/class/drm/card*` (driver, clocks, RC6, throttle, AMD busy/VRAM), `/sys/class/hwmon/*` (temperatures), `/proc/*/fdinfo/*` DRM entries of your own processes (Intel always, AMD only with the panel open), `/proc/<pid>/comm` |
+| `nvidia-smi --query-gpu=…`, and `nvidia-smi pmon -c 1` with the panel open | NVIDIA only, from the script | the NVIDIA driver |
+| `lspci -vmm -s <slot>` | once per GPU | GPU name |
+| `<terminal> -e btop` | on click | — |
+
+The plugin writes nothing.
 
 ## Settings
 
-| key       | type   | default | description         |
-| --------- | ------ | ------- | ------------------- |
-| showCount | toggle | true    | Show the tick count |
+| key      | type | default | description |
+| -------- | ---- | ------- | ----------- |
+| gpu      | text | auto    | Which GPU to show: `auto`, a card (`card1`), PCI slot or driver |
+| terminal | text | kitty   | Terminal used to open btop, run as `<terminal> -e btop` |
 
 ## Preview
 
-Capture a real screenshot of the widget and save it as
-`assets/preview-widget.png`, then list it under `files` in `manifest.json`. The
-store shows it in the catalogue.
-
-## Build, check, install
-
-```
-ryoku plugin validate .
-ryoku plugin add . --bar --yes
-```
-
-It lists under **Community** in QS Bar Settings. Publish it only when you want
-to share it: `ryoku plugin share gpu-monitor`.
-
-## Author
-
-hectorbaez81 <hector.baez@gmail.com>: this plugin is community-made (`official` is false).
+Capture the widget as `assets/preview-widget.png` and list it under `files` in
+`manifest.json`.
