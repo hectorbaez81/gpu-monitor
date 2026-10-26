@@ -7,6 +7,7 @@
 #   p<TAB>pid<TAB>render<TAB>media<TAB>total<TAB>comm   (cumulative fdinfo counters)
 #   q<TAB>pid<TAB>percent<TAB>comm                      (NVIDIA, already a percentage)
 # Reads sysfs and /proc only (plus nvidia-smi on NVIDIA). No root, writes nothing.
+# External tools: awk, grep, date, readlink, basename, cat, nvidia-smi (NVIDIA only).
 set -u
 want=${1:-auto}
 top=${2:-}
@@ -183,9 +184,21 @@ case "$drv" in
     [[ "$top" == "top" ]] && fdinfo_procs
     ;;
   nvidia)
-    q=$(nvidia-smi --query-gpu=name,utilization.gpu,clocks.gr,clocks.max.gr,temperature.gpu,memory.used,memory.total \
-          --format=csv,noheader,nounits 2>/dev/null | head -n 1)
-    IFS=',' read -r name busy act max temp mu mt <<<"$q"
+    # One row per NVIDIA GPU; keep the row of the GPU that was picked, matched
+    # by PCI bus ID (nvidia-smi pads the domain to 8 digits, sysfs to 4, so
+    # both are normalised). With no bus ID (no DRM card), use the first GPU.
+    q=$(nvidia-smi --query-gpu=index,pci.bus_id,name,utilization.gpu,clocks.gr,clocks.max.gr,temperature.gpu,memory.used,memory.total \
+          --format=csv,noheader,nounits 2>/dev/null |
+        awk -F', *' -v want="$pci" '
+          function norm(b,   p, n, d) {
+            b = tolower(b); n = split(b, p, ":")
+            if (n != 3) return b
+            d = p[1]; sub(/^0+/, "", d); if (d == "") d = "0"
+            return d ":" p[2] ":" p[3]
+          }
+          want == "" { print; exit }
+          norm($2) == norm(want) { print; exit }')
+    IFS=',' read -r idx bus name busy act max temp mu mt <<<"$q"
     trim() { local s=$1; s=${s#"${s%%[![:space:]]*}"}; echo "${s%"${s##*[![:space:]]}"}"; }
     num() { local s; s=$(trim "$1"); [[ "$s" =~ ^[0-9]+(\.[0-9]+)?$ ]] && echo "$s"; }
     echo "name=$(trim "${name:-}")"
@@ -195,7 +208,9 @@ case "$drv" in
     echo "vram_used=${u:+$(( ${u%.*} * 1048576 ))}"; echo "vram_total=${tt:+$(( ${tt%.*} * 1048576 ))}"
     if [[ "$top" == "top" ]]; then
       # pmon prints a "# gpu pid type sm ... command" header; find columns by name.
-      nvidia-smi pmon -c 1 -s u 2>/dev/null | awk '
+      idx=${idx//[[:space:]]/}
+      [[ "$idx" =~ ^[0-9]+$ ]] &&
+      nvidia-smi pmon -i "$idx" -c 1 -s u 2>/dev/null | awk '
         /^# *gpu/ { sub(/^# */, ""); for (i = 1; i <= NF; i++) col[$i] = i; next }
         /^#/ { next }
         ("pid" in col) && ("sm" in col) {
